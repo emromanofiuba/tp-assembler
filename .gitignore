@@ -1,0 +1,6 @@
+# Contexto local de Claude Code (no se versiona)
+CLAUDE.md
+
+# Artefactos de ensamblado
+*.o
+*.lst
