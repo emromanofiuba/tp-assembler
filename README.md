@@ -45,36 +45,7 @@ Dos detalles del enunciado a tener presentes. En la parte de decodificación dic
 
 La fila de registros sigue la *ABI System V* (la convención de Linux x86_64 que define qué registros puede pisar una función y cuáles tiene que devolver intactos). Si alguno necesita RBX o R12 a R15, hace `push` al entrar y `pop` al salir, en orden inverso. No es una formalidad: a `main` la llama el arranque de C, que espera encontrar RBX intacto cuando `main` vuelve. Pisarlo puede romper el programa justo al salir, aunque los resultados en memoria estén bien.
 
-El `main` acordado, que no se cambia sin avisar al otro:
-
-```nasm
-main:
-        sub     rsp, 8                      ; alinea la pila una sola vez
-
-        mov     rsi, secuenciaBinariaA
-        mov     rdi, secuenciaImprimibleA
-        movzx   rcx, byte[largoSecuenciaA]   ; el largo es db: 1 byte
-        call    CODIFICAR
-        mov     rsi, secuenciaBinariaA       ; se recargan: CODIFICAR
-        mov     rdi, secuenciaImprimibleA    ; dejo RSI, RDI y RCX
-        movzx   rcx, byte[largoSecuenciaA]   ; en cualquier valor
-        call    MOSTRAR_CODIFICACION
-
-        mov     rsi, secuenciaImprmibleB
-        mov     rdi, secuenciaBinariaB
-        movzx   rcx, byte[largoSecuenciaB]
-        call    DECODIFICAR
-        mov     rsi, secuenciaImprmibleB
-        mov     rdi, secuenciaBinariaB
-        movzx   rcx, byte[largoSecuenciaB]
-        call    MOSTRAR_DECODIFICACION
-finPrograma:
-        add     rsp, 8
-        xor     eax, eax                    ; codigo de salida 0
-        ret
-```
-
-Las rutinas `MOSTRAR_` reciben los mismos tres registros que la rutina que muestran, por eso `main` los vuelve a cargar antes de llamarlas. El `sub rsp, 8` del principio deja la pila como la espera cualquier función de C; el detalle está en [Salida por pantalla](#salida-por-pantalla).
+El código de `main` está en el [esqueleto](#esqueleto-de-tpfasm).
 
 ## Estándares de código
 
@@ -82,27 +53,9 @@ La regla de fondo: el archivo final tiene que leerse como si lo hubiera escrito 
 
 **Plantilla intocable.** No se renombran, mueven ni redimensionan las etiquetas de `.data` y `.bss` de la plantilla, typo incluido. La cátedra puede corregir reemplazando los datos, y si cambia una etiqueta el programa deja de ensamblar. Los largos se leen siempre de `largoSecuenciaA` y `largoSecuenciaB`, nunca 24 o 32 fijos.
 
-**Nombres.**
+**Nombres.** Las reglas están en la [sección 2](#reglas-de-nombres).
 
-| Elemento | Convención | Ejemplo |
-| --- | --- | --- |
-| Rutinas internas | MAYÚSCULAS, como `VALSM` de la cátedra | `CODIFICAR`, `DECODIFICAR` |
-| Rótulos dentro de una rutina | Locales de NASM: empiezan con punto | `.ciclo`, `.fin`, `.buscarIndice` |
-| Variables propias nuevas | camelCase con prefijo de la rutina | `codFormatoGrupo`, `decFormatoGrupo` |
-| Constantes | MAYÚSCULAS con `equ` | `MASCARA_INDICE equ 0x3F` |
-
-NASM ata cada rótulo con punto a la última etiqueta sin punto: `.ciclo` escrito dentro de CODIFICAR es en realidad `CODIFICAR.ciclo`. Así los dos pueden usar `.ciclo` y `.fin` sin chocar al juntar las rutinas, sin inventar prefijos. Conviene no crear variables en memoria salvo que hagan falta: con los registros libres del contrato alcanza.
-
-**Encabezado obligatorio en cada rutina.**
-
-```nasm
-;-----------------------------------------------------------------
-; CODIFICAR: convierte bytes binarios a caracteres Base64
-; Entrada : RSI = origen, RDI = destino, RCX = largo (bytes)
-; Salida  : destino cargado, RAX = caracteres escritos
-; Modifica: RAX, RCX, RDX, RSI, RDI, R8, R9
-;-----------------------------------------------------------------
-```
+**Encabezado obligatorio en cada rutina**, con Entrada, Salida y Modifica (y Preserva en las `MOSTRAR_`), como en el [esqueleto](#esqueleto-de-tpfasm).
 
 **Formato.** Indentación con tabs como la plantilla: rótulo en la columna 0, instrucción y operandos en columnas fijas. Comentarios en castellano sin tildes (los archivos de la cátedra no las usan y evita problemas de codificación), explicando el *por qué* del bloque, no repitiendo la instrucción. Nada de código comentado ni restos de pruebas en la entrega.
 
@@ -137,14 +90,14 @@ Cada vuelta del ciclo toma 3 bytes del origen y escribe 4 caracteres en el desti
 
 Prueba de escritorio antes de tocar el teclado: el ejemplo del enunciado `0xFA 0x17 0x6B` arma `EAX = 0x00FA176B` y da los índices 62, 33, 29, 43, o sea `+hdr`. Conviene verificar ese valor de EAX en GDB en la primera vuelta.
 
-Errores típicos a evitar: cargar el byte con `mov` en lugar de `movzx`, desplazar EAX en el lugar y perder el valor para el índice siguiente, avanzar RSI de a 4 por confusión con el destino, y traer el carácter de la tabla a AL. AL es la parte baja de EAX, así que pisa los 24 bits que todavía hacen falta para los índices siguientes: usen DL u otro registro que no sea parte de EAX.
+Errores típicos a evitar: desplazar EAX en el lugar y perder el valor para el índice siguiente, avanzar RSI de a 4 por confusión con el destino, y traer el carácter de la tabla a AL. AL es la parte baja de EAX, así que pisa los 24 bits que todavía hacen falta para los índices siguientes: usen DL u otro registro que no sea parte de EAX.
 
 ## Parte de Juanma: DECODIFICAR
 
 Cada vuelta toma 4 caracteres del origen y escribe 3 bytes en el destino; el ciclo da RCX / 4 vueltas (8 con la plantilla).
 
 1. Calcular la cantidad de grupos: RCX / 4. Como 4 es potencia de 2, alcanza con `shr rcx, 2`.
-2. Para cada uno de los 4 caracteres, obtener su índice (0 a 63) **recorriendo `TablaConversion`** hasta encontrarlo: la posición donde coincide es el índice. Conviene hacerlo como una subrutina interna `.buscarIndice` (carácter en DL, índice en R8; no en AL, que es parte del acumulador EAX), que respete el mismo contrato de registros.
+2. Para cada uno de los 4 caracteres, obtener su índice (0 a 63) **recorriendo `TablaConversion`** hasta encontrarlo: la posición donde coincide es el índice. Conviene hacerlo como una subrutina interna `.buscarIndice` (contrato en la [sección 2](#decodificar-juanma)).
 3. Acumular los 24 bits en EAX: arrancar en 0 y, por cada índice, `shl eax, 6` y `or` con el índice.
 4. Sacar los 3 bytes: `shr 16` para el primero, `shr 8` para el segundo y el byte bajo para el tercero (en cada caso alcanza con quedarse con el registro de 8 bits, sin máscara). Guardarlos en `[RDI]`, `[RDI+1]`, `[RDI+2]`.
 5. Avanzar RSI en 4 y RDI en 3, contar y repetir. Al salir, RAX = 3 × grupos.
@@ -157,7 +110,7 @@ Errores típicos: hacer el `shl` después del `or` en el último índice (corre 
 
 ## Salida por pantalla
 
-Cada parte muestra sus 8 grupos, uno por línea (el grupo de origen y lo que generó), y al final una línea con la secuencia completa y su resultado completo. Esta es la salida exacta que da una versión de prueba armada con este diseño, ensamblada con los comandos de la cátedra. El programa entregado tiene que mostrar lo mismo:
+Cada parte muestra sus 8 grupos, uno por línea (el grupo de origen y lo que generó), y al final una línea con la secuencia completa y su resultado completo. El programa entregado tiene que mostrar exactamente esto:
 
 ```
 Secuencia de 3 bytes inicial: C4 94 37 -> caracteres imprimibles generados: xJQ3
@@ -185,25 +138,17 @@ Secuencia de 32 caracteres completa: vhyAHZucgTUuznwTDciGQ8m4TuvUIyjU -> bytes g
 
 **Por qué en rutinas aparte.** `printf` puede pisar RSI, RDI, RCX y R8 a R11, que son justo los registros que usan los ciclos de `CODIFICAR` y `DECODIFICAR`. Llamarlo en medio del ciclo obligaría a guardar todo antes de cada llamada. Por eso cada parte convierte primero y muestra después, recorriendo origen y destino en paralelo.
 
-| Rutina | Dueño | Formato (en `.data`) | Argumentos de `printf` |
-| --- | --- | --- | --- |
-| `MOSTRAR_CODIFICACION` | Emi | `codFormatoGrupo` | RDI = formato, ESI, EDX, ECX = los 3 bytes (con `movzx`), R8 = dirección de los 4 caracteres |
-| `MOSTRAR_DECODIFICACION` | Juanma | `decFormatoGrupo` | RDI = formato, RSI = dirección de los 4 caracteres, EDX, ECX, R8D = los 3 bytes (con `movzx`) |
-
-Los formatos usan `%02X` (dos dígitos hexa, con 0 adelante si hace falta) para cada byte y `%.4s` para los caracteres. El `%.4s` imprime exactamente 4 caracteres desde la dirección que recibe; un `%s` común seguiría leyendo hasta encontrar un 0, y estos buffers no terminan en 0. Cada formato termina en `,10,0` (salto de línea y fin de cadena).
-
-**La línea completa** se arma con varias llamadas a `printf`, porque la cantidad de bytes depende del largo: una con el comienzo de la línea, una con `%02X ` por cada byte y una de cierre. El largo se imprime con `%d` y los caracteres con `%.*s`, que recibe la cantidad como argumento, así nada queda fijo en 24 o 32. Los formatos exactos están en la [sección 2](#variables-nuevas-formatos-de-printf).
+Qué va en cada argumento de `printf` y los formatos exactos (`%02X`, `%.4s`, `%d`, `%.*s`) están en la [sección 2](#rutinas-de-salida-mostrar_codificacion-emi-y-mostrar_decodificacion-juanma).
 
 **Reglas para que `printf` no rompa nada:**
 
 1. Las rutinas `MOSTRAR_` reciben RSI = origen, RDI = destino, RCX = largo del origen, igual que la rutina que muestran.
 2. Al entrar copian esos tres valores a RBX, R12 y R13, y usan R14 como contador de grupos: son registros que `printf` está obligada a devolver intactos. Para eso hacen `push rbx`, `push r12`, `push r13`, `push r14` al entrar y los `pop` en orden inverso al salir.
-3. Después de los 4 `push` va un `sub rsp, 8`, y antes de los `pop` el `add rsp, 8`. Los 4 `push` corren la pila 32 bytes, que la dejarían desalineada; el `sub rsp, 8` lo compensa. Junto con el `sub rsp, 8` de `main`, RSP queda en múltiplo de 16 en cada `call printf`, que es lo que exige la *ABI* (la convención de llamadas de Linux). Lo controlé en GDB llamada por llamada en una versión de prueba. Si alguno agrega o saca un `push`, tiene que revisar esta cuenta.
-4. `extern printf` va una sola vez al principio de `tpf.asm`, y lo agrega Emi.
+3. Después de los 4 `push` va un `sub rsp, 8`, y antes de los `pop` el `add rsp, 8`. Los 4 `push` corren la pila 32 bytes, que la dejarían desalineada; el `sub rsp, 8` lo compensa. Junto con el `sub rsp, 8` de `main`, RSP queda en múltiplo de 16 en cada `call printf`, que es lo que exige la *ABI* (la convención de llamadas de Linux). Si alguno agrega o saca un `push`, tiene que revisar esta cuenta.
 
 ## Plan de pruebas
 
-Cada rutina se da por terminada solo cuando pasa sus tres casos, y el programa integrado cuando pasa la prueba cruzada. Los resultados esperados de la plantilla los calculé con un codificador Base64 estándar y coinciden con los casos de prueba que trae comentados la cátedra.
+Cada rutina se da por terminada solo cuando pasa sus tres casos, y el programa integrado cuando pasa la prueba cruzada.
 
 | Rutina | Caso | Entrada | Resultado esperado | Fuente |
 | --- | --- | --- | --- | --- |
@@ -235,10 +180,9 @@ Cada uno desarrolla en su propio archivo y `tpf.asm` se toca una sola vez, el d�
 1. Repositorio compartido: este repo (`tp-assembler`), con el `tpf.asm` original y este plan.
 2. Emi trabaja en `tpf_cod.asm` y Juanma en `tpf_dec.asm`. Los dos son copias del esqueleto de la sección 2, completando solo su rutina.
 3. Para probar con otros casos, cada uno descomenta en su copia los datos de prueba de la plantilla y cambia solo la dirección que carga `main` en RSI. La rutina no se toca.
-4. Una rutina está lista cuando pasa sus tres casos de la tabla de pruebas. Se avisa al otro y se sube.
+4. Cuando una rutina pasa sus tres casos, se avisa al otro y se sube.
 5. El otro la revisa con este plan al lado: encabezado completo, contrato de registros, prefijos, `movzx`, sin largos fijos.
 6. Integración (Emi): copiar las dos rutinas en `tpf.asm`, ensamblar con los comandos acordados, correr los casos de entrega y la prueba cruzada.
-7. Cualquier cambio al contrato se acuerda entre los dos y se anota primero acá, en la tabla de contrato, antes de tocar código.
 
 ## Acuerdos antes de escribir código
 
@@ -257,7 +201,7 @@ Son 10 puntos para cerrar entre Emi y Juanma en el kickoff. Si los primeros cinc
 | Mostrar resultados por pantalla | Sí. Cada uno escribe la rutina que muestra su parte; `main` alinea la pila una sola vez | Uno agrega `printf` sin alinear la pila y el programa se cae | **Acordado** |
 | Herramientas y comandos | Los de la guía 00, los dos en Linux x86_64 | Anda en una máquina y no en la otra | Pendiente |
 
-Cuando un punto pasa a Acordado, la decisión queda escrita en la sección del plan que le corresponde. Si después alguno quiere cambiarla, avisa antes de tocar código.
+Cuando un punto pasa a Acordado, la decisión queda escrita en la sección del plan que le corresponde.
 
 ## Cronograma
 
@@ -286,17 +230,13 @@ El jueves 19 cada rutina tiene que pasar sus tres casos; si no llega, se usa el 
 - [ ] La salida por pantalla muestra los 8 grupos y la línea completa de cada parte, con los valores esperados
 - [ ] El ensayo desde cero salió bien en la máquina del que no integró
 
-**Qué se verificó al armar este plan.** Los comandos de ensamblado y enlace salen de la guía 00 de NASM y GCC de la cátedra. El `sub rsp, 8` antes de llamar a C sale del tutorial de GDB. Los resultados esperados de los casos de entrega los calculé con un codificador Base64 estándar, y ese mismo cálculo reproduce los dos casos de prueba de la plantilla. Lo que **no** está verificado: el medio de entrega, que el enunciado no indica.
-
 ---
 
 # 2. TP Base64: nombres, constantes e interfaz
 
-Esta sección fija cada nombre, constante y registro que usamos en `tpf.asm`, para que las dos rutinas se puedan juntar sin tocar nada. Si alguno necesita cambiar algo, lo cambia primero acá y le avisa al otro.
-
 ## Reglas de nombres
 
-Cada tipo de nombre tiene una forma distinta, así se reconoce qué es con solo leerlo. NASM distingue mayúsculas de minúsculas: `CODIFICAR` y `codificar` son dos símbolos distintos.
+Cada tipo de nombre tiene una forma distinta, así se reconoce qué es con solo leerlo. NASM distingue mayúsculas de minúsculas: `CODIFICAR` y `codificar` son dos símbolos distintos. Además ata cada rótulo con punto a la última etiqueta sin punto: `.ciclo` escrito dentro de CODIFICAR es en realidad `CODIFICAR.ciclo`. Así los dos pueden usar `.ciclo` y `.fin` sin chocar al juntar las rutinas.
 
 | Qué es | Forma | Ejemplo |
 | --- | --- | --- |
@@ -311,19 +251,17 @@ Las únicas variables nuevas son los ocho formatos de `printf`. Todo lo demás e
 
 ## Datos de la plantilla
 
-Estas siete etiquetas vienen en `tpf.asm` y no se renombran, mueven ni cambian de tamaño. Las rutinas no las nombran: `main` les pasa las direcciones por registro.
+Estas siete etiquetas vienen en `tpf.asm` (intocables, ver [Estándares de código](#estándares-de-código)). Las rutinas no las nombran: `main` les pasa las direcciones por registro.
 
 | Etiqueta | Sección | Tamaño | Contenido | Quién la usa |
 | --- | --- | --- | --- | --- |
 | `secuenciaBinariaA` | `.data` | 24 bytes | Binario a codificar | `main` la pasa en RSI a CODIFICAR |
 | `largoSecuenciaA` | `.data` | 1 byte (`db`) | 0x18 = 24 | `main` la lee con `movzx` a RCX |
 | `secuenciaImprimibleA` | `.bss` | 32 bytes (`resb`) | Resultado de codificar | CODIFICAR la escribe (RDI) |
-| `secuenciaImprmibleB` | `.data` | 32 bytes | Texto a decodificar (sin la "i", así viene) | `main` la pasa en RSI a DECODIFICAR |
+| `secuenciaImprmibleB` | `.data` | 32 bytes | Texto a decodificar | `main` la pasa en RSI a DECODIFICAR |
 | `largoSecuenciaB` | `.data` | 1 byte (`db`) | 0x20 = 32 | `main` la lee con `movzx` a RCX |
 | `secuenciaBinariaB` | `.bss` | 24 bytes (`resb`) | Resultado de decodificar | DECODIFICAR la escribe (RDI) |
 | `TablaConversion` | `.data` | 64 bytes | `A` a `Z`, `a` a `z`, `0` a `9`, `+`, `/` | Las dos rutinas, solo lectura |
-
-Los datos de prueba comentados en la plantilla se descomentan solo en la copia de trabajo de cada uno, nunca en el `tpf.asm` final.
 
 ### Variables nuevas: formatos de `printf`
 
@@ -365,22 +303,9 @@ El 4º índice y el 3º byte no necesitan constante de desplazamiento: ya están
 
 ## main y contrato de llamada
 
-`main` es de Emi y alinea la pila, y por cada parte llama a la rutina que convierte y después a la que muestra. Las cuatro rutinas reciben los mismos tres registros, por eso `main` los recarga antes de cada `MOSTRAR_`. El código de `main` está en la [sección 1](#arquitectura-y-contrato-de-interfaz) y en el esqueleto de abajo.
+El contrato de registros de las cuatro rutinas está en la [sección 1](#arquitectura-y-contrato-de-interfaz). RCX se usa como lo que falta procesar: cada vuelta le resta el tamaño del grupo y el ciclo termina cuando llega a 0. Así no hace falta dividir.
 
-| Registro | Al entrar a la rutina | Al salir de la rutina |
-| --- | --- | --- |
-| RSI | Dirección del origen | Cualquier valor |
-| RDI | Dirección del destino | Cualquier valor |
-| RCX | Largo del origen: bytes en CODIFICAR, caracteres en DECODIFICAR | Cualquier valor |
-| RAX | Sin uso | Cantidad escrita en el destino |
-| RDX, R8 a R11 | Sin uso | Cualquier valor |
-| RBX, RBP, R12 a R15, RSP | No se tocan | Iguales que al entrar |
-
-RCX se usa como lo que falta procesar: cada vuelta le resta el tamaño del grupo y el ciclo termina cuando llega a 0. Así no hace falta dividir.
-
-El `xor eax, eax` antes del `ret` de `main` no es decorativo. Lo que queda en EAX al salir de `main` es el *código de salida* (el número que el programa le devuelve al sistema; 0 significa "terminó bien"). Sin esa línea el programa devuelve 24, lo que dejó DECODIFICAR en RAX, y parece que falló. El rótulo `finPrograma` sirve para poner ahí el punto de parada de GDB.
-
-El `sub rsp, 8` al entrar y el `add rsp, 8` antes de salir dejan la pila como la espera cualquier función de C. Sin eso, `printf` arranca con la pila desalineada y puede romperse.
+El `xor eax, eax` antes del `ret` de `main` no es decorativo. Lo que queda en EAX al salir de `main` es el *código de salida* (el número que el programa le devuelve al sistema; 0 significa "terminó bien"). Sin esa línea el programa devuelve 24, lo que dejó DECODIFICAR en RAX, y parece que falló. El rótulo `finPrograma` sirve para poner ahí el punto de parada de GDB. El `sub rsp, 8` y el `add rsp, 8` se explican en [Salida por pantalla](#salida-por-pantalla).
 
 ## CODIFICAR (Emi)
 
@@ -400,8 +325,6 @@ Convierte grupos de 3 bytes en grupos de 4 caracteres. Cada registro tiene un so
 | --- | --- | --- |
 | `.ciclo` | `CODIFICAR.ciclo` | Inicio de cada vuelta; ahí se pregunta si RCX llegó a 0 |
 | `.fin` | `CODIFICAR.fin` | Copia R9 a RAX y hace `ret` |
-
-El carácter se trae a DL y no a AL porque AL es parte de EAX y borraría los bits que faltan.
 
 ## DECODIFICAR (Juanma)
 
@@ -427,13 +350,11 @@ Convierte grupos de 4 caracteres en grupos de 3 bytes. Usa los mismos registros 
 | `.compara` | `DECODIFICAR.compara` | Ciclo de la búsqueda |
 | `.encontrado` | `DECODIFICAR.encontrado` | Salida de la búsqueda (`ret`) |
 
-**Contrato de `.buscarIndice`.** Recibe el carácter en DL y devuelve en R8 su posición en `TablaConversion`, recorriéndola de 0 a `CANT_SIMBOLOS - 1`. Si no lo encuentra devuelve 0. Solo modifica R8 y los flags: no toca EAX ni R10, que DECODIFICAR sigue usando.
-
-**Corrección respecto de una versión anterior del plan.** Una primera versión decía que la búsqueda devolvía el índice en AL. Está mal: AL es parte de EAX, que es el acumulador, y lo rompería en cada carácter. Por eso el índice vuelve en R8.
+**Contrato de `.buscarIndice`.** Recibe el carácter en DL y devuelve en R8 su posición en `TablaConversion`, recorriéndola de 0 a `CANT_SIMBOLOS - 1`. Si no lo encuentra devuelve 0. Solo modifica R8 y los flags: no toca EAX ni R10, que DECODIFICAR sigue usando (por eso el índice no vuelve en AL, que es parte de EAX).
 
 ## Rutinas de salida: MOSTRAR_CODIFICACION (Emi) y MOSTRAR_DECODIFICACION (Juanma)
 
-Cada una recorre su origen y su destino en paralelo y hace un `printf` por grupo; al final arma la línea completa con varias llamadas más. Van aparte de las rutinas que convierten porque `printf` pisa RSI, RDI, RCX y R8 a R11, que son los registros de los ciclos de conversión. Las dos tienen la misma forma; cambia qué va en cada argumento.
+Cada una hace un `printf` por grupo y al final arma la línea completa con varias llamadas más. Por qué van aparte y cómo se alinea la pila está en [Salida por pantalla](#salida-por-pantalla). Las dos tienen la misma forma; cambia qué va en cada argumento.
 
 | Registro | MOSTRAR_CODIFICACION | MOSTRAR_DECODIFICACION |
 | --- | --- | --- |
@@ -450,15 +371,11 @@ Cada una recorre su origen y su destino en paralelo y hace un `printf` por grupo
 
 **Línea completa de MOSTRAR_DECODIFICACION.** Un `printf` con `decFormatoTotalInicio`: ESI = EDX = largo y RCX = RBX. Después uno con `decFormatoByte` por cada byte generado: R13 pasa a 3 × R14 y R12 avanza. Al final uno con `decFormatoTotalFin`.
 
-RBX, R12, R13 y R14 se usan porque `printf` está obligada a devolverlos intactos. Cada rutina hace `push rbx`, `push r12`, `push r13`, `push r14` y después `sub rsp, 8`; al salir, `add rsp, 8` y los `pop` en orden inverso. Los 4 `push` mueven la pila 32 bytes y la dejarían desalineada: el `sub rsp, 8` lo compensa y, junto con el de `main`, deja RSP en múltiplo de 16 en cada `call printf`. Si alguno agrega o saca un `push`, tiene que rehacer esa cuenta.
-
-Rótulos de `MOSTRAR_CODIFICACION`: `.grupo`, `.total`, `.byte`, `.resultado` y `.fin`. De `MOSTRAR_DECODIFICACION`: `.grupo`, `.total`, `.byte`, `.salto` y `.fin`. Como son locales, quedan `MOSTRAR_CODIFICACION.grupo`, `MOSTRAR_DECODIFICACION.grupo`, etc., sin chocar.
+Rótulos de `MOSTRAR_CODIFICACION`: `.grupo`, `.total`, `.byte`, `.resultado` y `.fin`. De `MOSTRAR_DECODIFICACION`: `.grupo`, `.total`, `.byte`, `.salto` y `.fin`.
 
 ## Esqueleto de tpf.asm
 
-Este es el archivo final con todo lo de arriba en su lugar y las cuatro rutinas vacías. Lo ensamblé y enlacé con los comandos de la guía 00 de la cátedra (NASM 2.16): no da errores ni advertencias y termina con código de salida 0. Cada uno lo copia como `tpf_cod.asm` o `tpf_dec.asm` y completa solo los comentarios de su rutina, sin tocar el resto.
-
-Como control, armé aparte una versión con las cuatro rutinas completas respetando exactamente estos nombres, constantes y registros. Ensambla, deja en memoria los resultados esperados para los dos casos de entrega y muestra por pantalla la salida esperada del plan. En GDB, RSP es múltiplo de 16 en cada llamada a printf. O sea, el diseño cierra: si cada uno respeta este documento, las rutinas se pueden juntar sin cambios.
+Este es el archivo final con todo lo de arriba en su lugar y las cuatro rutinas vacías. Cada uno completa solo los comentarios de su rutina, sin tocar el resto.
 
 ```nasm
 global	main
@@ -652,3 +569,9 @@ MOSTRAR_DECODIFICACION:
 		pop		rbx
 		ret
 ```
+
+---
+
+# Qué se verificó
+
+Los comandos de ensamblado y enlace salen de la guía 00 de NASM y GCC de la cátedra, y el `sub rsp, 8` antes de llamar a C, del tutorial de GDB. Los resultados esperados de los casos de entrega se calcularon con un codificador Base64 estándar, que además reproduce los dos casos de prueba de la plantilla. El esqueleto ensambla y enlaza sin errores ni advertencias (NASM 2.16) y termina con código de salida 0. Aparte se armó una versión con las cuatro rutinas completas respetando exactamente estos nombres, constantes y registros: deja en memoria los resultados esperados, muestra la salida de [Salida por pantalla](#salida-por-pantalla) y, en GDB, RSP es múltiplo de 16 en cada llamada a `printf`. Lo que **no** está verificado: el medio de entrega, que el enunciado no indica.
