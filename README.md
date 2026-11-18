@@ -113,14 +113,14 @@ Errores típicos: hacer el `shl` después del `or` en el último índice (corre 
 Cada parte muestra sus 8 grupos, uno por línea (el grupo de origen y lo que generó), y al final una línea con la secuencia completa y su resultado completo. El programa entregado tiene que mostrar exactamente esto:
 
 ```
-Secuencia de 3 bytes inicial: C4 94 37 -> caracteres imprimibles generados: xJQ3
-Secuencia de 3 bytes inicial: 95 63 A2 -> caracteres imprimibles generados: lWOi
-Secuencia de 3 bytes inicial: 1D 3C 86 -> caracteres imprimibles generados: HTyG
-Secuencia de 3 bytes inicial: FC 22 A9 -> caracteres imprimibles generados: /CKp
-Secuencia de 3 bytes inicial: 3D 7C A4 -> caracteres imprimibles generados: PXyk
-Secuencia de 3 bytes inicial: 51 63 7C -> caracteres imprimibles generados: UWN8
-Secuencia de 3 bytes inicial: 29 04 93 -> caracteres imprimibles generados: KQST
-Secuencia de 3 bytes inicial: BB 65 18 -> caracteres imprimibles generados: u2UY
+Secuencia de 3 bytes actual: C4 94 37 -> caracteres imprimibles generados: xJQ3
+Secuencia de 3 bytes actual: 95 63 A2 -> caracteres imprimibles generados: lWOi
+Secuencia de 3 bytes actual: 1D 3C 86 -> caracteres imprimibles generados: HTyG
+Secuencia de 3 bytes actual: FC 22 A9 -> caracteres imprimibles generados: /CKp
+Secuencia de 3 bytes actual: 3D 7C A4 -> caracteres imprimibles generados: PXyk
+Secuencia de 3 bytes actual: 51 63 7C -> caracteres imprimibles generados: UWN8
+Secuencia de 3 bytes actual: 29 04 93 -> caracteres imprimibles generados: KQST
+Secuencia de 3 bytes actual: BB 65 18 -> caracteres imprimibles generados: u2UY
 
 Secuencia de 24 bytes completa: C4 94 37 95 63 A2 1D 3C 86 FC 22 A9 3D 7C A4 51 63 7C 29 04 93 BB 65 18 -> caracteres imprimibles generados: xJQ3lWOiHTyG/CKpPXykUWN8KQSTu2UY
 
@@ -245,7 +245,7 @@ Cada tipo de nombre tiene una forma distinta, así se reconoce qué es con solo 
 | Rótulos dentro de una rutina | punto + camelCase | `.ciclo`, `.fin`, `.buscarIndice` |
 | Constantes | MAYÚSCULAS con guión bajo, definidas con `equ` | `MASCARA_INDICE` |
 | Etiquetas de la plantilla | tal cual vienen, sin corregir | `secuenciaImprmibleB` |
-| Variables nuevas en memoria | camelCase con prefijo `cod` o `dec` según la parte | `codFormatoGrupo` |
+| Variables nuevas en memoria | camelCase con prefijo `cod` o `dec` según la parte | `decFormatoGrupo` |
 
 Las únicas variables nuevas son los ocho formatos de `printf`. Todo lo demás entra en registros, lo que evita la fuente más común de choques entre las dos partes. Si alguno necesita otra variable, la anota primero acá.
 
@@ -269,10 +269,10 @@ Para la salida por pantalla se agregan ocho variables en `.data`, después de `T
 
 | Variable | Contenido | Para qué |
 | --- | --- | --- |
-| `codFormatoGrupo` | `"Secuencia de 3 bytes inicial: %02X %02X %02X -> caracteres imprimibles generados: %.4s",10,0` | Línea de cada grupo (Emi) |
-| `codFormatoTotalInicio` | `10,"Secuencia de %d bytes completa: ",0` | Comienzo de la línea completa (Emi) |
-| `codFormatoByte` | `"%02X ",0` | Cada byte de la línea completa (Emi) |
-| `codFormatoTotalFin` | `"-> caracteres imprimibles generados: %.*s",10,10,0` | Cierre de la línea completa (Emi) |
+| `grupoCodificado` | `"Secuencia de 3 bytes actual: %02X %02X %02X -> caracteres imprimibles generados: %.4s",10,0` | Línea de cada grupo (Emi) |
+| `secuenciaTotalBinaria` | `10,"Secuencia de %d bytes completa: ",0` | Comienzo de la línea completa (Emi) |
+| `byteSecuencia` | `"%02X ",0` | Cada byte de la línea completa (Emi) |
+| `secuenciaTotalCodificada` | `"-> caracteres imprimibles generados: %.*s",10,10,0` | Cierre de la línea completa (Emi) |
 | `decFormatoGrupo` | `"Secuencia de 4 caracteres inicial: %.4s -> bytes generados: %02X %02X %02X",10,0` | Línea de cada grupo (Juanma) |
 | `decFormatoTotalInicio` | `10,"Secuencia de %d caracteres completa: %.*s -> bytes generados: ",0` | Comienzo de la línea completa (Juanma) |
 | `decFormatoByte` | `"%02X ",0` | Cada byte de la línea completa (Juanma) |
@@ -280,7 +280,7 @@ Para la salida por pantalla se agregan ocho variables en `.data`, después de `T
 
 `%02X` imprime un byte como dos dígitos hexa. `%.4s` imprime exactamente 4 caracteres, necesario porque los buffers no terminan en 0. El `10,0` final es salto de línea y fin de cadena.
 
-`%d` imprime el largo en decimal, así el 24 o el 32 no quedan escritos fijos. `%.*s` imprime tantos caracteres como diga el argumento anterior. El `10` al principio de los formatos de la línea completa deja una línea en blanco antes, y el `10,10` de `codFormatoTotalFin` deja otra antes de la parte de Juanma. `codFormatoByte` y `decFormatoByte` son iguales a propósito: cada parte usa la suya y nadie depende de una variable del otro.
+`%d` imprime el largo en decimal, así el 24 o el 32 no quedan escritos fijos. `%.*s` imprime tantos caracteres como diga el argumento anterior. El `10` al principio de los formatos de la línea completa deja una línea en blanco antes, y el `10,10` de `secuenciaTotalCodificada` deja otra antes de la parte de Juanma. `byteSecuencia` y `decFormatoByte` son iguales a propósito: cada parte usa la suya y nadie depende de una variable del otro.
 
 ## Constantes comunes
 
@@ -367,11 +367,11 @@ Cada una hace un `printf` por grupo y al final arma la línea completa con varia
 | R8 | Dirección de los 4 caracteres generados | 3º byte generado (con `movzx`) |
 | EAX | 0 antes de cada `call printf` | 0 antes de cada `call printf` |
 
-**Línea completa de MOSTRAR_CODIFICACION.** Un `printf` con `codFormatoTotalInicio` y el largo en ESI. Después uno con `codFormatoByte` por cada byte del origen: RBX avanza y R13 cuenta los que faltan, porque a esa altura ya no se necesitan. Al final uno con `codFormatoTotalFin`: ESI = 4 × R14 (la cantidad de caracteres) y RDX = R12.
+**Línea completa de MOSTRAR_CODIFICACION.** Un `printf` con `secuenciaTotalBinaria` y el largo en ESI. Después uno con `byteSecuencia` por cada byte del origen: RBX avanza y R13 cuenta los que faltan, porque a esa altura ya no se necesitan. Al final uno con `secuenciaTotalCodificada`: ESI = 4 × R14 (la cantidad de caracteres) y RDX = R12.
 
 **Línea completa de MOSTRAR_DECODIFICACION.** Un `printf` con `decFormatoTotalInicio`: ESI = EDX = largo y RCX = RBX. Después uno con `decFormatoByte` por cada byte generado: R13 pasa a 3 × R14 y R12 avanza. Al final uno con `decFormatoTotalFin`.
 
-Rótulos de `MOSTRAR_CODIFICACION`: `.grupo`, `.total`, `.byte`, `.resultado` y `.fin`. De `MOSTRAR_DECODIFICACION`: `.grupo`, `.total`, `.byte`, `.salto` y `.fin`.
+Rótulos de `MOSTRAR_CODIFICACION`: `.grupo`, `.totalBinario`, `.byte`, `.totalImprimible` y `.fin`. De `MOSTRAR_DECODIFICACION`: `.grupo`, `.total`, `.byte`, `.salto` y `.fin`.
 
 ## Esqueleto de tpf.asm
 
@@ -407,10 +407,10 @@ section	.data
 	TablaConversion		db	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 	; Formatos de salida (variables nuevas)
-	codFormatoGrupo		db	"Secuencia de 3 bytes inicial: %02X %02X %02X -> caracteres imprimibles generados: %.4s",10,0
-	codFormatoTotalInicio	db	10,"Secuencia de %d bytes completa: ",0
-	codFormatoByte			db	"%02X ",0
-	codFormatoTotalFin		db	"-> caracteres imprimibles generados: %.*s",10,10,0
+	grupoCodificado		db	"Secuencia de 3 bytes actual: %02X %02X %02X -> caracteres imprimibles generados: %.4s",10,0
+	secuenciaTotalBinaria	db	10,"Secuencia de %d bytes completa: ",0
+	byteSecuencia			db	"%02X ",0
+	secuenciaTotalCodificada		db	"-> caracteres imprimibles generados: %.*s",10,10,0
 	decFormatoGrupo		db	"Secuencia de 4 caracteres inicial: %.4s -> bytes generados: %02X %02X %02X",10,0
 	decFormatoTotalInicio	db	10,"Secuencia de %d caracteres completa: %.*s -> bytes generados: ",0
 	decFormatoByte			db	"%02X ",0
@@ -517,15 +517,15 @@ MOSTRAR_CODIFICACION:
 		mov		r13, rcx		; largo del origen
 		xor		r14d, r14d		; grupo actual = 0
 .grupo:
-		; si 3 * R14 >= R13, ir a .total
-		; printf con codFormatoGrupo: 3 bytes del grupo y sus 4 caracteres
+		; si 3 * R14 >= R13, ir a .totalBinario
+		; printf con grupoCodificado: 3 bytes del grupo y sus 4 caracteres
 		; inc R14
-.total:
-		; printf con codFormatoTotalInicio (largo en ESI)
+.totalBinario:
+		; printf con secuenciaTotalBinaria (largo en ESI)
 .byte:
-		; printf con codFormatoByte por cada byte del origen
-.resultado:
-		; printf con codFormatoTotalFin (4 * R14 caracteres desde R12)
+		; printf con byteSecuencia por cada byte del origen
+.totalImprimible:
+		; printf con secuenciaTotalCodificada (4 * R14 caracteres desde R12)
 .fin:
 		add		rsp, 8
 		pop		r14
