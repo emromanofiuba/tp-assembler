@@ -31,11 +31,11 @@ section .data
     ;VARIABLES DE SALIDA POR PANTALLA USANDO PRINTF
     grupoCodificado     db "Secuencia de 3 bytes actual: %02X %02X %02X -> caracteres imprimibles generados: %.4s", 10,0
     
-    secuenciaTotalBinaria db "Secuencia de %d bytes completa: ", 0
+    secuenciaTotalBinaria db 10,"Secuencia de %d bytes completa: ", 0
     
     byteSecuencia       db  "%02X ",0
     
-    secuenciaTotalCodificada db    " -> caracteres imprimibles generados: %.*s",10,10,0 
+    secuenciaTotalCodificada db    "-> caracteres imprimibles generados: %.*s",10,10,0 
     
     
 section .bss
@@ -57,22 +57,12 @@ main:
     movzx   rcx, byte[largoSecuenciaA]
     call    MOSTRAR_CODIFICACION
     
-    mov     rsi, secuenciaImprmibleB
-    mov     rdi, secuenciaBinariaB
-    movzx   rcx, byte[largoSecuenciaB]
-    call    DECODIFICAR
-    mov     rsi, secuenciaImprmibleB
-    mov     rdi, secuenciaBinariaB
-    movzx   rcx, byte[largoSecuenciaB]
-    call    MOSTRAR_DECODIFICACION
 
 finPrograma:
     add     rsp, 8
     xor     eax, eax
     ret
     
-    
-;RUTINAS INTERNAS
 
 CODIFICAR:
     xor     r9, r9      ;escribí 0 caracteres hasta el momento
@@ -81,7 +71,7 @@ CODIFICAR:
     cmp     rcx, 0    
     je      .fin
     
-    ;armar los 24 bits del grupo actual en EAX
+    ;ARMAR LOS 24 BITS DEL GRUPO ACTUAL EN EAX
     movzx   eax, byte[rsi]
     shl     eax, DESPL_BYTE_1
     movzx   r8d, byte[rsi+1]
@@ -90,7 +80,7 @@ CODIFICAR:
     movzx   r8d, byte[rsi+2]
     or      eax, r8d
     
-    ;obtener los 4 indices y escribir los 4 caracteres
+    ;OBTENER LOS 4 INDICES Y CODIFICAR CADA CARACTER EN BASE A ESTOS
     ;1° caracter
     mov     edx, eax
     shr     edx, DESPL_INDICE_1
@@ -119,12 +109,79 @@ CODIFICAR:
     add    rsi, BYTES_POR_GRUPO
     add    rdi, CARACTERES_POR_GRUPO
     add    r9, CARACTERES_POR_GRUPO
-    sub    rcx, 
-      
-    
+    sub    rcx, BYTES_POR_GRUPO
+    jmp    .ciclo
+ 
 .fin:
     mov rax, r9
     ret
+      
+   
+MOSTRAR_CODIFICACION:
+    push   rbx
+    push   r12
+    push   r13
+    push   r14
+    sub     rsp, 8
+    mov     rbx, rsi
+    mov     r12, rdi
+    mov     r13, rcx
+    xor     r14, r14    ;grupo actual = 0
+    
+.grupo:
+    ;1) CONDICION DE SALIDA, YA SE CODIFICARON TODOS LOS GRUPOS DE 3 BYTES
+    mov     rax, r14
+    imul    rax, BYTES_POR_GRUPO    
+    cmp     rax, r13
+    jae     .totalBinario                  
+
+    ;2) CARGO LOS ARGUMENTOS DE PRINTF
+    mov     rdi, grupoCodificado
+    movzx   esi, byte[rbx + rax]
+    movzx   edx, byte[rbx + rax + 1]
+    movzx   ecx, byte[rbx + rax + 2]
+    mov     r8, r14
+    imul    r8, CARACTERES_POR_GRUPO
+    add     r8, r12                 
+    xor     eax, eax               
+    call    printf
+    inc     r14
+    jmp     .grupo
+
+.totalBinario:
+    mov     rdi, secuenciaTotalBinaria
+    mov     esi, r13d
+    xor     eax, eax
+    call    printf
+ 
+.byte:
+    cmp     r13, 0
+    je      .totalImprimible
+    mov     rdi, byteSecuencia
+    movzx   esi, byte[rbx]
+    xor     eax, eax
+    call    printf
+    inc     rbx
+    dec     r13
+    jmp     .byte
+    
+.totalImprimible:
+    mov     rdi, secuenciaTotalCodificada
+    imul    r14, CARACTERES_POR_GRUPO
+    mov     esi, r14d
+    mov     rdx, r12
+    xor     eax, eax
+    call    printf
+    
+.fin:
+    add rsp, 8
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    ret
+ 
+
     
     
     
