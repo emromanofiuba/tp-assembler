@@ -59,91 +59,114 @@ finPrograma:
 
 
 DECODIFICAR:
-        xor     r9d, r9d
+	xor		r9d, r9d
 .ciclo:
-        cmp     rcx, 0
-        jle     .fin
-        
-        xor     eax, eax
-        mov     r10, CARACTERES_POR_GRUPO
-        
-.caracter:
-        mov     dl, [rsi]
-        call    .buscarIndice
-        shl     eax, BITS_POR_INDICE
-        or      eax, r8d
-        
-        inc     rsi
-        dec     r10
-        jnz     .caracter
-        
-        mov     edx, eax
-        shr     edx, DESPL_BYTE_1
-        mov     [rdi], dl
+	cmp		rcx, 0
+	jle		.fin
 
-        mov     edx, eax
-        shr     edx, DESPL_BYTE_2
-        mov     [rdi + 1], dl
-        
-        mov     [rdi + 2], al
-        
-        add     rdi, BYTES_POR_GRUPO
-        add     r9, BYTES_POR_GRUPO
-        sub     rcx, CARACTERES_POR_GRUPO
-        jmp     .ciclo
+	xor		eax, eax
+	mov		r10, CARACTERES_POR_GRUPO
+
+.caracter:
+	mov		dl, [rsi]
+	call	.buscarIndice
+	shl		eax, BITS_POR_INDICE
+	or		eax, r8d
+
+	inc		rsi
+	dec		r10
+	jnz		.caracter
+
+	mov		edx, eax
+	shr		edx, DESPL_BYTE_1
+	mov		[rdi], dl
+
+	mov		edx, eax
+	shr		edx, DESPL_BYTE_2
+	mov		[rdi + 1], dl
+
+	mov		[rdi + 2], al
+
+	add		rdi, BYTES_POR_GRUPO
+	add		r9, BYTES_POR_GRUPO
+	sub		rcx, CARACTERES_POR_GRUPO
+	jmp		.ciclo
 
 .fin:
-        mov     rax, r9
-        ret
-        
-        
-.buscarIndice:
-        xor     r8d, r8d
-       
-.compara:
-        cmp     dl, [TablaConversion + r8]
-        je      .encontrado
-        inc     r8
-        cmp     r8, CANT_SIMBOLOS
-        jb      .compara
-        xor     r8d, r8d
-       
+	mov		rax, r9
+	ret
 
-        
-.encontrado: 
-        ret
-        
-        
+.buscarIndice:
+	xor		r8d, r8d
+
+.compara:
+	cmp		dl, [TablaConversion + r8]
+	je		.encontrado
+	inc		r8
+	cmp		r8, CANT_SIMBOLOS
+	jb		.compara
+	xor		r8d, r8d
+
+.encontrado:
+	ret
+
 MOSTRAR_DECODIFICACION:
-        push    rbx
-        push    r12
-        push    r13 
-        
-        mov         rbx,rsi
-        mov         r12, rdi
-        mov         r13, rcx
-        
+	push	rbx
+	push	r12
+	push	r13
+	push	r14
+	push	r15
+
+	mov		rbx, rsi
+	mov		r12, rdi
+	mov		r13, rcx
+	mov		r14, rdi
+	xor		r15d, r15d
+
 .ciclo:
-        cmp     r13, 0
-        jle     .fin
-        
-        mov     rdi, decFormatoGrupo
-        mov     rsi, rbx
-        movzx   edx, byte[r12]
-        movzx   ecx, byte[r12 + 1]
-        movzx   r8d, byte[r12 + 2]
-        xor         eax, eax
-        call printf
-        
-               
-        add     rbx, CARACTERES_POR_GRUPO
-        add     r12, BYTES_POR_GRUPO
-        sub     r13, CARACTERES_POR_GRUPO
-        jmp     .ciclo       
-        
-.fin: 
-        pop     r13
-        pop     r12
-        pop     rbx
-        
-        ret  
+	cmp		r13, 0
+	jle		.imprimirTotal
+
+	mov		rdi, decFormatoGrupo
+	mov		rsi, rbx
+	movzx	edx, byte [r12]
+	movzx	ecx, byte [r12 + 1]
+	movzx	r8d, byte [r12 + 2]
+	xor		eax, eax
+	call	printf
+
+	add		rbx, CARACTERES_POR_GRUPO
+	add		r12, BYTES_POR_GRUPO
+	add		r15, BYTES_POR_GRUPO
+	sub		r13, CARACTERES_POR_GRUPO
+	jmp		.ciclo
+
+.imprimirTotal:
+	mov		rdi, decFormatoFinal
+	xor		eax, eax
+	call	printf
+
+.cicloBytes:
+	cmp		r15, 0
+	jle		.fin
+
+	mov		rdi, decFormatoByte
+	movzx	esi, byte [r14]
+	xor		eax, eax
+	call	printf
+
+	inc		r14
+	dec		r15
+	jmp		.cicloBytes
+
+.fin:
+	mov		rdi, saltoLinea
+	xor		eax, eax
+	call	printf
+
+	pop		r15
+	pop		r14
+	pop		r13
+	pop		r12
+	pop		rbx
+	ret

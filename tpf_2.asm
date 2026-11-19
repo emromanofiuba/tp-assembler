@@ -266,40 +266,60 @@ DECODIFICAR:
 MOSTRAR_DECODIFICACION:
         push    rbx
         push    r12
-        push    r13 
+        push    r13
+        push    r14
+        sub     rsp, 8
         
-        mov         rbx,rsi
-        mov         r12, rdi
-        mov         r13, rcx
+        mov     rbx, rsi
+        mov     r12, rdi
+        mov     r13, rcx
+        xor     r14, r14    ;grupo actual = 0
         
-.ciclo:
-        cmp     r13, 0
-        jle     .fin
+.grupo:
+    ;1) CONDICION DE SALIDA, YA SE DECODIFICARON TODOS LOS GRUPOS DE 4 CARACTERES
+        mov     rax, r14
+        imul    rax, CARACTERES_POR_GRUPO
+        cmp     rax, r13
+        jae     .totalBinario
         
+    ;2) CARGO LOS ARGUMENTOS DE PRINTF
         mov     rdi, grupoDecodificado
-        mov     rsi, rbx
-        movzx   edx, byte[r12]
-        movzx   ecx, byte[r12 + 1]
-        movzx   r8d, byte[r12 + 2]
-        xor         eax, eax
-        call printf
+        lea     rsi, [rbx + rax]
+        mov     r8, r14
+        imul    r8, BYTES_POR_GRUPO
+        movzx   edx, byte[r12 + r8]
+        movzx   ecx, byte[r12 + r8 + 1]
+        movzx   r8d, byte[r12 + r8 + 2]
+        xor     eax, eax
+        call    printf
+        inc     r14
+        jmp     .grupo
+
+.totalBinario:
+        imul    r14, BYTES_POR_GRUPO
+        mov     rdi, secuenciaTotalBinaria
+        mov     esi, r14d
+        xor     eax, eax
+        call    printf
+
+.byte:
+        cmp     r14, 0
+        je      .fin
+        mov     rdi, byteSecuencia
+        movzx   esi, byte[r12]
+        xor     eax, eax
+        call    printf
+        inc     r12
+        dec     r14
+        jmp     .byte
         
-               
-        add     rbx, CARACTERES_POR_GRUPO
-        add     r12, BYTES_POR_GRUPO
-        sub     r13, CARACTERES_POR_GRUPO
-        jmp     .ciclo       
-        
-.fin: 
+.fin:
+        add     rsp, 8
+        pop     r14
         pop     r13
         pop     r12
         pop     rbx
-        
-        ret  
- 
-
-    
-    
+        ret
     
     
     
