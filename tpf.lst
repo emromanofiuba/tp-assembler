@@ -1,0 +1,396 @@
+     1                                  global main
+     2                                  extern printf
+     3                                  
+     4                                  BYTES_POR_GRUPO         equ 3
+     5                                  CARACTERES_POR_GRUPO    equ 4
+     6                                  
+     7                                  
+     8                                  MASCARA_INDICE          equ 0x3F  ;63
+     9                                  DESPL_INDICE_1          equ 18
+    10                                  DESPL_INDICE_2          equ 12
+    11                                  DESPL_INDICE_3          equ 6
+    12                                  
+    13                                  BITS_POR_INDICE         equ 6
+    14                                  DESPL_BYTE_1            equ 16
+    15                                  DESPL_BYTE_2            equ 8
+    16                                  CANT_SIMBOLOS           equ 64
+    17                                  
+    18                                  section .data
+    19 00000000 C494379563A21D3C            secuenciaBinariaA	 db	0xC4, 0x94, 0x37, 0x95, 0x63, 0xA2, 0x1D, 0x3C
+    20 00000008 86FC22A93D7CA451        			 db	0x86, 0xFC, 0x22, 0xA9, 0x3D, 0x7C, 0xA4, 0x51
+    21 00000010 637C290493BB6518        			 db	0x63, 0x7C, 0x29, 0x04, 0x93, 0xBB, 0x65, 0x18
+    22                                  
+    23 00000018 18                          largoSecuenciaA     db      0x18   ;24
+    24                                      
+    25 00000019 76687941485A756367-         secuenciaImprimibleB db	"vhyAHZucgTUuznwTDciGQ8m4TuvUIyjU"
+    25 00000022 5455757A6E77544463-
+    25 0000002B 694751386D34547576-
+    25 00000034 5549796A55         
+    26 00000039 20                          largoSecuenciaB	db      0x20  ;32d
+    27                                      
+    28 0000003A 53656375656E636961-         grupoDecodificado   db      "Secuencia de 4 caracteres actual: %.4s -> bytes generados: %02X %02X %02X",10,0
+    28 00000043 206465203420636172-
+    28 0000004C 616374657265732061-
+    28 00000055 637475616C3A20252E-
+    28 0000005E 3473202D3E20627974-
+    28 00000067 65732067656E657261-
+    28 00000070 646F733A2025303258-
+    28 00000079 202530325820253032-
+    28 00000082 580A00             
+    29                                      
+    30 00000085 414243444546474849-         TablaConversion	db      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    30 0000008E 4A4B4C4D4E4F505152-
+    30 00000097 535455565758595A61-
+    30 000000A0 62636465666768696A-
+    30 000000A9 6B6C6D6E6F70717273-
+    30 000000B2 7475767778797A3031-
+    30 000000BB 32333435363738392B-
+    30 000000C4 2F                 
+    31                                      
+    32                                  ; Casos de prueba:
+    33                                  ; SecuenciaBinariaDePrueba db	0x73, 0x38, 0xE7, 0xF7, 0x34, 0x2C, 0x4F, 0x92
+    34                                  ;						   db	0x49, 0x55, 0xE5, 0x9F, 0x8E, 0xF2, 0x75, 0x5A 
+    35                                  ;						   db	0xD3, 0xC5, 0x53, 0x65, 0x68, 0x52, 0x78, 0x3F
+    36                                  ; SecuenciaImprimibleCodificada	db	"czjn9zQsT5JJVeWfjvJ1WtPFU2VoUng/"
+    37                                  
+    38                                  ; SecuenciaImprimibleDePrueba db "Qy2A2dhEivizBySXb/09gX+tk/2ExnYb"
+    39                                  ; SecuenciaBinariaDecodificada	db	0x43, 0x2D, 0x80, 0xD9, 0xD8, 0x44, 0x8A, 0xF8 
+    40                                  ;								db	0xB3, 0x07, 0x24, 0x97, 0x6F, 0xFD, 0x3D, 0x81 
+    41                                  ;								db	0x7F, 0xAD, 0x93, 0xFD, 0x84, 0xC6, 0x76, 0x1B
+    42                                   
+    43                                  ; Un codificador/decodificador online se puede encontrar en https://www.rapidtables.com/web/tools/base64-encode.html
+    44                                      
+    45                                      
+    46                                      ;VARIABLES DE SALIDA POR PANTALLA USANDO PRINTF
+    47 000000C5 53656375656E636961-         grupoCodificado          db "Secuencia de 3 bytes actual: %02X %02X %02X -> caracteres imprimibles generados: %.4s", 10,0
+    47 000000CE 206465203320627974-
+    47 000000D7 65732061637475616C-
+    47 000000E0 3A2025303258202530-
+    47 000000E9 32582025303258202D-
+    47 000000F2 3E2063617261637465-
+    47 000000FB 72657320696D707269-
+    47 00000104 6D69626C6573206765-
+    47 0000010D 6E657261646F733A20-
+    47 00000116 252E34730A00       
+    48                                      
+    49 0000011C 0A53656375656E6369-         secuenciaTotalBinaria    db 10,"Secuencia de %d bytes completa: ", 0
+    49 00000125 612064652025642062-
+    49 0000012E 7974657320636F6D70-
+    49 00000137 6C6574613A2000     
+    50                                      
+    51 0000013E 253032582000                byteSecuencia            db  "%02X ",0
+    52                                      
+    53 00000144 2D3E20636172616374-         secuenciaTotalCodificada db    "-> caracteres imprimibles generados: %.*s",10,10,0 
+    53 0000014D 6572657320696D7072-
+    53 00000156 696D69626C65732067-
+    53 0000015F 656E657261646F733A-
+    53 00000168 20252E2A730A0A00   
+    54                                      
+    55 00000170 0A53656375656E6369-         secuenciaTotalImprimible db 10,"Secuencia de %d caracteres completa: %.*s -> bytes generados: ", 0
+    55 00000179 612064652025642063-
+    55 00000182 617261637465726573-
+    55 0000018B 20636F6D706C657461-
+    55 00000194 3A20252E2A73202D3E-
+    55 0000019D 206279746573206765-
+    55 000001A6 6E657261646F733A20-
+    55 000001AF 00                 
+    56                                      
+    57 000001B0 0A00                        finLinea                 db 10,0
+    58                                      
+    59                                      
+    60                                  section .bss
+    61 00000000 <res 20h>                   secuenciaImprimibleA    resb    32
+    62 00000020 <res 18h>                   secuenciaBinariaB       resb    24
+    63                                      
+    64                                   
+    65                                  section .text
+    66                                  
+    67                                  main:
+    68 00000000 4889E5                      mov rbp, rsp; for correct debugging
+    69 00000003 4883EC08                        sub     rsp, 8
+    70                                      
+    71 00000007 48BE-                           mov     rsi, secuenciaBinariaA
+    71 00000009 [0000000000000000] 
+    72 00000011 48BF-                           mov     rdi, secuenciaImprimibleA
+    72 00000013 [0000000000000000] 
+    73 0000001B 480FB60C25-                     movzx   rcx, byte[largoSecuenciaA]
+    73 00000020 [18000000]         
+    74 00000024 E86D000000                      call    CODIFICAR
+    75 00000029 48BE-                           mov     rsi, secuenciaBinariaA
+    75 0000002B [0000000000000000] 
+    76 00000033 48BF-                           mov     rdi, secuenciaImprimibleA
+    76 00000035 [0000000000000000] 
+    77 0000003D 480FB60C25-                     movzx   rcx, byte[largoSecuenciaA]
+    77 00000042 [18000000]         
+    78 00000046 E8C4000000                      call    MOSTRAR_CODIFICACION
+    79                                      
+    80 0000004B 48BE-                           mov     rsi, secuenciaImprimibleB
+    80 0000004D [1900000000000000] 
+    81 00000055 48BF-                           mov     rdi, secuenciaBinariaB
+    81 00000057 [2000000000000000] 
+    82 0000005F 480FB60C25-                     movzx	rcx, byte [largoSecuenciaB]
+    82 00000064 [39000000]         
+    83 00000068 E850010000                      call	DECODIFICAR
+    84 0000006D 48BE-                           mov     rsi, secuenciaImprimibleB
+    84 0000006F [1900000000000000] 
+    85 00000077 48BF-                           mov     rdi, secuenciaBinariaB
+    85 00000079 [2000000000000000] 
+    86 00000081 480FB60C25-                     movzx   rcx, byte [largoSecuenciaB]
+    86 00000086 [39000000]         
+    87 0000008A E891010000                      call    MOSTRAR_DECODIFICACION
+    88                                      
+    89                                      
+    90                                  finPrograma:
+    91 0000008F 4883C408                        add     rsp, 8
+    92 00000093 31C0                            xor     eax, eax
+    93 00000095 C3                              ret
+    94                                      
+    95                                  
+    96                                  ;--------------------------------------CODIFICACIÓN-------------------------------
+    97                                  CODIFICAR:
+    98 00000096 4D31C9                          xor     r9, r9      ;escribí 0 caracteres hasta el momento
+    99                                      
+   100                                  .ciclo:
+   101 00000099 4883F900                        cmp     rcx, 0    
+   102 0000009D 746C                            je      .fin
+   103                                          
+   104                                        ;ARMAR LOS 24 BITS DEL GRUPO ACTUAL EN EAX
+   105 0000009F 0FB606                          movzx   eax, byte[rsi]
+   106 000000A2 C1E010                          shl     eax, DESPL_BYTE_1
+   107 000000A5 440FB64601                      movzx   r8d, byte[rsi+1]
+   108 000000AA 41C1E008                        shl     r8d, DESPL_BYTE_2
+   109 000000AE 4409C0                          or      eax, r8d
+   110 000000B1 440FB64602                      movzx   r8d, byte[rsi+2]
+   111 000000B6 4409C0                          or      eax, r8d
+   112                                      
+   113                                      ;OBTENER LOS 4 INDICES Y CODIFICAR CADA CARACTER EN BASE A ESTOS
+   114                                          ;1° caracter
+   115 000000B9 89C2                            mov     edx, eax
+   116 000000BB C1EA12                          shr     edx, DESPL_INDICE_1
+   117 000000BE 83E23F                          and     edx, MASCARA_INDICE
+   118 000000C1 8A92[85000000]                  mov     dl, [TablaConversion + rdx]
+   119 000000C7 8817                            mov     [rdi], dl
+   120                                          ;2°
+   121 000000C9 89C2                            mov     edx, eax
+   122 000000CB C1EA0C                          shr     edx, DESPL_INDICE_2
+   123 000000CE 83E23F                          and     edx, MASCARA_INDICE
+   124 000000D1 8A92[85000000]                  mov     dl, [TablaConversion + rdx]
+   125 000000D7 885701                          mov     [rdi+1], dl
+   126                                          ;3°
+   127 000000DA 89C2                            mov     edx, eax
+   128 000000DC C1EA06                          shr     edx, DESPL_INDICE_3
+   129 000000DF 83E23F                          and     edx, MASCARA_INDICE
+   130 000000E2 8A92[85000000]                  mov     dl, [TablaConversion + rdx]
+   131 000000E8 885702                          mov     [rdi+2], dl
+   132                                          ;4°
+   133 000000EB 89C2                            mov     edx, eax
+   134 000000ED 83E23F                          and     edx, MASCARA_INDICE
+   135 000000F0 8A92[85000000]                  mov     dl, [TablaConversion + rdx]
+   136 000000F6 885703                          mov     [rdi+3], dl
+   137                                      
+   138                                        ;avanzo los registros
+   139 000000F9 4883C603                        add    rsi, BYTES_POR_GRUPO
+   140 000000FD 4883C704                        add    rdi, CARACTERES_POR_GRUPO
+   141 00000101 4983C104                        add    r9, CARACTERES_POR_GRUPO
+   142 00000105 4883E903                        sub    rcx, BYTES_POR_GRUPO
+   143 00000109 EB8E                            jmp    .ciclo
+   144                                   
+   145                                  .fin:
+   146 0000010B 4C89C8                          mov rax, r9
+   147 0000010E C3                              ret
+   148                                        
+   149                                     
+   150                                  MOSTRAR_CODIFICACION:
+   151 0000010F 53                              push   rbx
+   152 00000110 4154                            push   r12
+   153 00000112 4155                            push   r13
+   154 00000114 4156                            push   r14
+   155 00000116 4883EC08                        sub     rsp, 8
+   156 0000011A 4889F3                          mov     rbx, rsi
+   157 0000011D 4989FC                          mov     r12, rdi
+   158 00000120 4989CD                          mov     r13, rcx
+   159 00000123 4D31F6                          xor     r14, r14    ;grupo actual = 0
+   160                                      
+   161                                  .grupo:
+   162                                      ;1) CONDICION DE SALIDA, YA SE CODIFICARON TODOS LOS GRUPOS DE 3 BYTES
+   163 00000126 4C89F0                          mov     rax, r14
+   164 00000129 486BC003                        imul    rax, BYTES_POR_GRUPO    
+   165 0000012D 4C39E8                          cmp     rax, r13
+   166 00000130 732E                            jae     .totalBinario                  
+   167                                  
+   168                                      ;2) CARGO LOS ARGUMENTOS DE PRINTF
+   169 00000132 48BF-                           mov     rdi, grupoCodificado
+   169 00000134 [C500000000000000] 
+   170 0000013C 0FB63403                        movzx   esi, byte[rbx + rax]
+   171 00000140 0FB6540301                      movzx   edx, byte[rbx + rax + 1]
+   172 00000145 0FB64C0302                      movzx   ecx, byte[rbx + rax + 2]
+   173 0000014A 4D89F0                          mov     r8, r14
+   174 0000014D 4D6BC004                        imul    r8, CARACTERES_POR_GRUPO
+   175 00000151 4D01E0                          add     r8, r12                 
+   176 00000154 31C0                            xor     eax, eax               
+   177 00000156 E8(00000000)                    call    printf
+   178 0000015B 49FFC6                          inc     r14
+   179 0000015E EBC6                            jmp     .grupo
+   180                                  
+   181                                  .totalBinario:
+   182 00000160 48BF-                           mov     rdi, secuenciaTotalBinaria
+   182 00000162 [1C01000000000000] 
+   183 0000016A 4489EE                          mov     esi, r13d
+   184 0000016D 31C0                            xor     eax, eax
+   185 0000016F E8(00000000)                    call    printf
+   186                                       
+   187                                  .byte:
+   188 00000174 4983FD00                        cmp     r13, 0
+   189 00000178 741C                            je      .totalImprimible
+   190 0000017A 48BF-                           mov     rdi, byteSecuencia
+   190 0000017C [3E01000000000000] 
+   191 00000184 0FB633                          movzx   esi, byte[rbx]
+   192 00000187 31C0                            xor     eax, eax
+   193 00000189 E8(00000000)                    call    printf
+   194 0000018E 48FFC3                          inc     rbx
+   195 00000191 49FFCD                          dec     r13
+   196 00000194 EBDE                            jmp     .byte
+   197                                      
+   198                                  .totalImprimible:
+   199 00000196 48BF-                           mov     rdi, secuenciaTotalCodificada
+   199 00000198 [4401000000000000] 
+   200 000001A0 4D6BF604                        imul    r14, CARACTERES_POR_GRUPO
+   201 000001A4 4489F6                          mov     esi, r14d
+   202 000001A7 4C89E2                          mov     rdx, r12
+   203 000001AA 31C0                            xor     eax, eax
+   204 000001AC E8(00000000)                    call    printf
+   205                                      
+   206                                  .fin:
+   207 000001B1 4883C408                        add rsp, 8
+   208 000001B5 415E                            pop r14
+   209 000001B7 415D                            pop r13
+   210 000001B9 415C                            pop r12
+   211 000001BB 5B                              pop rbx
+   212 000001BC C3                              ret
+   213                                      
+   214                                  
+   215                                  ;-------------------------------DECODIFICACACIÓN---------------------------
+   216                                  DECODIFICAR:
+   217 000001BD 4531C9                          xor     r9d, r9d
+   218                                  .ciclo:
+   219 000001C0 4883F900                        cmp     rcx, 0
+   220 000001C4 7E3D                            jle     .fin
+   221                                          
+   222 000001C6 31C0                            xor     eax, eax
+   223 000001C8 41BA04000000                    mov     r10, CARACTERES_POR_GRUPO
+   224                                          
+   225                                  .caracter:
+   226 000001CE 8A16                            mov     dl, [rsi]
+   227 000001D0 E832000000                      call    .buscarIndice
+   228 000001D5 C1E006                          shl     eax, BITS_POR_INDICE
+   229 000001D8 4409C0                          or      eax, r8d
+   230                                          
+   231 000001DB 48FFC6                          inc     rsi
+   232 000001DE 49FFCA                          dec     r10
+   233 000001E1 75EB                            jnz     .caracter
+   234                                          
+   235 000001E3 89C2                            mov     edx, eax
+   236 000001E5 C1EA10                          shr     edx, DESPL_BYTE_1
+   237 000001E8 8817                            mov     [rdi], dl
+   238                                  
+   239 000001EA 89C2                            mov     edx, eax
+   240 000001EC C1EA08                          shr     edx, DESPL_BYTE_2
+   241 000001EF 885701                          mov     [rdi + 1], dl
+   242                                          
+   243 000001F2 884702                          mov     [rdi + 2], al
+   244                                          
+   245 000001F5 4883C703                        add     rdi, BYTES_POR_GRUPO
+   246 000001F9 4983C103                        add     r9, BYTES_POR_GRUPO
+   247 000001FD 4883E904                        sub     rcx, CARACTERES_POR_GRUPO
+   248 00000201 EBBD                            jmp     .ciclo
+   249                                  
+   250                                  .fin:
+   251 00000203 4C89C8                          mov     rax, r9
+   252 00000206 C3                              ret
+   253                                          
+   254                                          
+   255                                  .buscarIndice:
+   256 00000207 4531C0                          xor     r8d, r8d
+   257                                         
+   258                                  .compara:
+   259 0000020A 413A90[85000000]                cmp     dl, [TablaConversion + r8]
+   260 00000211 740C                            je      .encontrado
+   261 00000213 49FFC0                          inc     r8
+   262 00000216 4983F840                        cmp     r8, CANT_SIMBOLOS
+   263 0000021A 72EE                            jb      .compara
+   264 0000021C 4531C0                          xor     r8d, r8d
+   265                                          
+   266                                  .encontrado: 
+   267 0000021F C3                              ret
+   268                                          
+   269                                          
+   270                                  MOSTRAR_DECODIFICACION:
+   271 00000220 53                              push    rbx
+   272 00000221 4154                            push    r12
+   273 00000223 4155                            push    r13
+   274 00000225 4156                            push    r14
+   275 00000227 4883EC08                        sub     rsp, 8
+   276                                          
+   277 0000022B 4889F3                          mov     rbx, rsi
+   278 0000022E 4989FC                          mov     r12, rdi
+   279 00000231 4989CD                          mov     r13, rcx
+   280 00000234 4D31F6                          xor     r14, r14    ;grupo actual = 0
+   281                                          
+   282                                  .grupo:
+   283                                      ;1) CONDICION DE SALIDA, YA SE DECODIFICARON TODOS LOS GRUPOS DE 4 CARACTERES
+   284 00000237 4C89F0                          mov     rax, r14
+   285 0000023A 486BC004                        imul    rax, CARACTERES_POR_GRUPO
+   286 0000023E 4C39E8                          cmp     rax, r13
+   287 00000241 7332                            jae     .totalBinario
+   288                                          
+   289                                      ;2) CARGO LOS ARGUMENTOS DE PRINTF
+   290 00000243 48BF-                           mov     rdi, grupoDecodificado
+   290 00000245 [3A00000000000000] 
+   291 0000024D 488D3403                        lea     rsi, [rbx + rax]
+   292 00000251 4D89F0                          mov     r8, r14
+   293 00000254 4D6BC003                        imul    r8, BYTES_POR_GRUPO
+   294 00000258 430FB61404                      movzx   edx, byte[r12 + r8]
+   295 0000025D 430FB64C0401                    movzx   ecx, byte[r12 + r8 + 1]
+   296 00000263 470FB6440402                    movzx   r8d, byte[r12 + r8 + 2]
+   297 00000269 31C0                            xor     eax, eax
+   298 0000026B E8(00000000)                    call    printf
+   299 00000270 49FFC6                          inc     r14
+   300 00000273 EBC2                            jmp     .grupo
+   301                                  
+   302                                  .totalBinario:
+   303 00000275 4D6BF603                        imul    r14, BYTES_POR_GRUPO
+   304 00000279 48BF-                           mov     rdi, secuenciaTotalImprimible
+   304 0000027B [7001000000000000] 
+   305 00000283 4489EE                          mov     esi, r13d
+   306 00000286 4489EA                          mov     edx, r13d
+   307 00000289 4889D9                          mov     rcx, rbx
+   308 0000028C 31C0                            xor     eax, eax
+   309 0000028E E8(00000000)                    call    printf
+   310                                  
+   311                                  .byte:
+   312 00000293 4983FE00                        cmp     r14, 0
+   313 00000297 741E                            je      .fin
+   314 00000299 48BF-                           mov     rdi, byteSecuencia
+   314 0000029B [3E01000000000000] 
+   315 000002A3 410FB63424                      movzx   esi, byte[r12]
+   316 000002A8 31C0                            xor     eax, eax
+   317 000002AA E8(00000000)                    call    printf
+   318 000002AF 49FFC4                          inc     r12
+   319 000002B2 49FFCE                          dec     r14
+   320 000002B5 EBDC                            jmp     .byte
+   321                                          
+   322                                  .fin:
+   323 000002B7 48BF-                           mov     rdi, finLinea
+   323 000002B9 [B001000000000000] 
+   324 000002C1 31C0                            xor     eax, eax
+   325 000002C3 E8(00000000)                    call    printf
+   326 000002C8 4883C408                        add     rsp, 8
+   327 000002CC 415E                            pop     r14
+   328 000002CE 415D                            pop     r13
+   329 000002D0 415C                            pop     r12
+   330 000002D2 5B                              pop     rbx
+   331 000002D3 C3                              ret
+   332                                      
+   333                                      
+   334                                      
+   335                                      
